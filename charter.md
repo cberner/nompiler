@@ -31,8 +31,8 @@ The user should primarily interact with:
 1. The **Nom UI**
 2. The **Charter branch** (i.e. `master`)
 
-The generated Design, Code, and Release branches are mostly agent-owned. The user may inspect or edit them for
-debugging, auditing, or advanced control, but normal users should not need to.
+Generated Code and Release branches, including their Design collateral, are mostly agent-owned. The user may inspect or
+edit them for debugging, auditing, or advanced control, but normal users should not need to.
 
 ## 2. Core Goal and Design Rule
 
@@ -41,7 +41,8 @@ micromanage implementation details.
 
 The central design rule is:
 
-> The Charter branch is the canonical human source. Design, Code, and Release branches are generated outputs of Nom.
+> The Charter branch is the canonical human source. Design artifacts, Code branches, and Release branches are generated
+> outputs of Nom.
 
 The user is responsible for product intent and important product-level decisions. Nom is responsible for architecture,
 planning, implementation, review, debugging, and refinement.
@@ -56,16 +57,17 @@ artifacts pollute future generations.
 
 ### 3.1 Repository and Branch Model
 
-Nom uses a single Git repository with separate branch namespaces for Charter, Design, Code, and Release.
+Nom uses a single Git repository with separate branch namespaces for Charter, Code, and Release. Design is a versioned
+artifact stored with the Code lineage it governs rather than in a separate branch namespace.
 
-Nom must reserve the `design/*`, `code/*`, and `release/*` namespaces. A repository must not contain both a top-level
-branch such as `design` and a namespaced branch such as `design/1.0`. Nom must stop and report a namespace collision
-rather than creating or rewriting conflicting refs.
+Nom must reserve the `code/*` and `release/*` namespaces. A repository must not contain both a top-level branch such as
+`code` and a namespaced branch such as `code/1.0`. Nom must stop and report a namespace collision rather than creating
+or rewriting conflicting refs.
 
-Manual changes on active Design or Code branches are treated as ordinary generated state, not protected human intent.
-Nom must detect them before integrating work so it does not act on a stale revision, then continue as if Nom had made
-the changes itself. It may preserve, modify, or remove their content without asking the user. Manual changes to the
-Charter remain human-owned input and follow the Charter reconciliation rules.
+Manual changes on active Code branches, including changes to Design artifacts, are treated as ordinary generated state,
+not protected human intent. Nom must detect them before integrating work so it does not act on a stale revision, then
+continue as if Nom had made the changes itself. It may preserve, modify, or remove their content without asking the
+user. Manual changes to the Charter remain human-owned input and follow the Charter reconciliation rules.
 
 #### 3.1.1 Charter Branch
 
@@ -74,25 +76,18 @@ The Charter branch contains the human-authored source of truth for the project. 
 Nom must identify the immutable Charter revision used by each run and account for Charter changes observed while the run
 is active.
 
-#### 3.1.2 Design Branches
-
-Design branches are Nom's generated intermediate representation and are primarily intended to be consumed by the Nom
-Implementer agent to build the software. They may also be useful for debugging, auditing, and comparing runs, but they
-are not the user’s primary interface.
-
-Design branches should be namespaced by human-initiated runs, such as:
-
-```text
-design/1.x
-design/2.x
-```
-
-Each run uses a Design branch associated with its selected Code branch or starting point. The Design records the run's
-Charter, Design, and Code lineage.
-
-#### 3.1.3 Code Branches
+#### 3.1.2 Code Branches
 
 Code branches contain active software implementation lineages.
+
+Each Code branch stores its canonical generated Design artifacts under `.nom/design/`. These artifacts are Nom's
+intermediate representation and are primarily intended for Implementer agents, while remaining available for debugging,
+auditing, and comparing revisions. Versioned Design collateral is not Nom runtime state; live execution state must be
+stored separately from generated project branches.
+
+Each run uses a selected Code branch or Code starting point. Its Design records the Charter revision and Code baseline
+for the run. Nom identifies each published `.nom/design/` state as an immutable Design revision. Later
+implementation-only Code revisions continue to reference that Design revision until the Architect publishes another.
 
 Nom works directly on a selected Code branch. The user does not review a generated candidate branch to approve
 changes. Instead, the user tells Nom to work from a Charter and the branch to target, and Nom autonomously writes,
@@ -106,9 +101,9 @@ code/2.x
 ```
 
 A Code branch may continue from a previous Code branch, or it may be a clean generation from the Charter. Code branches
-should generally follow from a similarly named Design branch.
+contain both the generated Design history and the implementation it governs.
 
-#### 3.1.4 Release Branches
+#### 3.1.3 Release Branches
 
 Release branches are stabilized outputs cut from Code branches. The user initiates a Release branch when they want to
 preserve a stable version of the software. Nom then performs extra testing of the Release branch to fix bugs and ensure
@@ -126,6 +121,8 @@ release/2.0
 ```
 
 Release branches are useful when the Code branch continues evolving but a stable version needs to be preserved.
+They retain `.nom/design/` for traceability, although packaged binaries and other distribution artifacts need not
+include it.
 
 ### 3.2 Agent Roles and Artifact Authority
 
@@ -145,9 +142,10 @@ explicitly approves a proposed change, the Nom system may apply it to the Charte
 Charter directly.
 
 Implementers and Reviewers may ask the Architect questions and report Design findings, but only the Architect may
-publish substantive Design changes within Nom's agent workflow. Nom may validate Design artifacts and add mechanically
-verifiable run metadata. Reviewers report Code findings to the Architect for canonical disposition and to Implementers
-for any resulting Code changes.
+publish substantive changes under `.nom/design/` within Nom's agent workflow. Nom may validate Design artifacts and add
+mechanically verifiable run metadata. Nom must reject an Implementer or Reviewer result that modifies Architect-owned
+Design paths. Reviewers report Code findings to the Architect for canonical disposition and to Implementers for any
+resulting Code changes.
 
 ## 4. Charter
 
@@ -174,7 +172,8 @@ the user rather than silently choosing one.
 
 ## 5. Architecture and Design Artifacts
 
-Nom's Architect agent reads the Charter and produces generated architecture documents on a Design branch.
+Nom's Architect agent reads the Charter and produces generated architecture documents under `.nom/design/` on the
+selected Code branch.
 
 The canonical Design artifacts for a run must include, as appropriate to the project:
 
@@ -197,7 +196,7 @@ the user doing so.
 ## 6. Tasks
 
 The Architect agent converts the generated architecture into implementation tasks and owns their canonical definitions
-on the Design branch.
+under `.nom/design/`.
 
 Each task should include:
 
@@ -208,8 +207,8 @@ Each task should include:
 - Testing expectations
 - Dependencies, if any
 
-Task definitions can be versioned on Design branches. Live execution state must be maintained separately from the
-canonical task definitions so it can change without rewriting the Design.
+Task definitions are versioned with the Design on Code branches. Live execution state must be maintained separately from
+the canonical task definitions so it can change without rewriting the Design.
 
 ## 7. Workflow
 
@@ -238,16 +237,16 @@ Implementation work may synchronize only with the current Code revision after th
 Charter change.
 
 If the Charter changes after a run completes, the completed run remains an immutable record of its exact inputs. Nom
-offers the user a successor run with a new Design branch and the previous final Code revision as its baseline. Nom must
-not start the successor run without the user's approval.
+offers the user a successor run with the previous final Code revision as its baseline. The user may select a new or
+existing Code branch for that run. Nom must not start the successor run without the user's approval.
 
 ### 7.2 Research and Architecture
 
 Nom researches relevant prior art, libraries, papers, design patterns, and comparable products when useful.
 
-The Architect agent then reads the Charter and produces generated architecture artifacts on a Design branch. The
-Architect should resolve technical details itself when reasonable. It escalates to the user only for product-level
-decisions.
+The Architect agent then reads the Charter and produces generated architecture artifacts under `.nom/design/` on the
+selected Code lineage. The Architect should resolve technical details itself when reasonable. It escalates to the user
+only for product-level decisions.
 
 Architecture is a continuing reconciliation loop, not a one-time generation step. The Architect revises the Design when
 the Charter changes or implementation and review reveal new information.
@@ -263,11 +262,12 @@ Tasks should be as independent as practical so Nom can execute them in parallel 
 Nom gives each active agent an isolated writable workspace based on an immutable Code revision. No two active agents may
 share a writable checkout. Nom must retain enough durable state to recover the workspace and attribute its results.
 
-Only work that has passed the required validation and review may advance the externally meaningful Code branch. Before
-publishing Design, integrating Code, or completing a run, Nom must verify that the relevant Charter, Design, and Code
-revisions are still current and reconciled. If an active Design or Code branch changes manually, Nom must reconcile the
-new revision before continuing and must not integrate work based on the stale revision. After reconciliation, the manual
-content has no special preservation status.
+Architect-owned Design-only revisions may advance the externally meaningful Code branch after required Design
+validation. Implementation changes may advance it only after the required validation and independent review. Before
+publishing a Design revision, integrating implementation work, or completing a run, Nom must verify that the relevant
+Charter, Design, and Code revisions are still current and reconciled. If an active Code branch changes manually, Nom
+must reconcile the new revision before continuing and must not integrate work based on the stale revision. After
+reconciliation, the manual content has no special preservation status.
 
 If an Implementer agent hits ambiguity, it asks the Architect. The Architect answers, revises Design artifacts if
 necessary, or escalates to the user through the Nom UI.
@@ -347,8 +347,8 @@ dependency caches, and other large execution artifacts must stay outside project
 reference externally stored evidence when needed.
 
 Remote pushing is disabled until the user enables a specific remote for the repository. Once enabled, Nom may push its
-generated Design, Code, and Release branches after they pass the repository-safety gate. Pushing the human-owned Charter
-branch requires separate explicit enablement.
+generated Code and Release branches after they pass the repository-safety gate. Pushing the human-owned Charter branch
+requires separate explicit enablement.
 
 Before a push, Nom must inspect every Git object that the push would make newly reachable from the remote. The default
 limits are 2 MiB for any single blob and 10 MiB for the aggregate size of all newly introduced objects. A durable
@@ -423,7 +423,7 @@ The lineage is not assumed. It is recorded in the Design run manifest.
 
 ## 10. User Interaction Model
 
-The normal user should not need to understand Design, Code, or Release branches.
+The normal user should not need to understand Design collateral, Code branches, or Release branches.
 
 The user interacts with Nom through:
 
@@ -437,8 +437,8 @@ and permitted by a Design-defined safety policy. It must deny requests that crea
 repository, credentials, external systems, privacy, or unexpected cost. Nom must durably record every disposition and
 surface denials through the Nom UI; approval requests should not be surfaced to the user.
 
-The user may inspect Design, Code, or Release branches when they want to debug, audit, or understand what Nom is doing.
-These branches are not the main user interface.
+The user may inspect Design collateral, Code branches, or Release branches when they want to debug, audit, or understand
+what Nom is doing. These generated artifacts are not the main user interface.
 
 ## 11. Implementation Details
 

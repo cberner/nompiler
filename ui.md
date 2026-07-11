@@ -1,3 +1,7 @@
+# Nom UI
+
+This document defines durable user-facing requirements for the Nom UI.
+
 The user launches Nom by executing `nom` for a Git repository. Running `nom` starts the local Nom UI, which should let
 the user:
 
@@ -13,7 +17,7 @@ the user:
 9. See the Architect's completion decision and resulting Design and Code revisions.
 10. Cut a Release branch from a selected Code revision and start its testing and polishing process.
 
-## Index page
+## Index Page
 
 The landing page should have a navigation bar with links to all the top-level pages of the Nom UI.
 
@@ -21,28 +25,31 @@ At the top of the page is a mini dashboard of metrics of the most recently activ
 completion percentage indicating how much of the charter has been implemented and tested. It also shows a metric of
 the code quality, and a metric of the number of open issues.
 
-There is a button to launch a new run from the current Charter. It opens a modal to select the name for the run, which Nom
-uses to name Design and Code branches as `design/<name>` and `code/<name>`. An "Advanced" toggle can be used to manually
-specify the Design and Code branches to use. An existing branch may be selected in this case.
+There is a button to launch a new run from the current Charter. It opens a modal to select the run name, which Nom uses
+to name the Code branch as `code/<name>`. Nom stores the run's canonical Design under `.nom/design/` on that branch. An
+"Advanced" toggle allows the user to select an existing Code branch or another Code starting point. Nom must validate
+and reconcile the selected lineage before starting the run.
 
 It should show a list of runs, with a filter to show only active runs, or include completed and/or failed runs.
 
-It should show a list of Design and Code branches, sorted by the most recently modified at the top.
+It should show a list of Code branches, including each branch's current Design status, sorted by most recent activity.
 
-## Run page
+## Run Page
 
-Click a run to see its details leads to the Run page, which shows the status of the run, including the current phase,
-task, and agent status, as well as the token usage and remaining run budget.
+Clicking a run opens the Run page, which shows its current phase, task, agent status, token usage, and remaining run
+budget.
 
 It also shows the current Charter, Design, and Code revisions.
 
 It also displays any feedback from the agents to the user and allows the user to review and approve any proposed change
 to the canonical Charter.
 
-## Code page
+## Code Page
 
-Click a Code branch on the landing page to see its completion, code quality...etc metrics on a dedicated page.
+Clicking a Code branch on the landing page opens a dedicated page with its completion, code-quality, and related
+metrics.
 
-## Design page
+## Design Page
 
-Click a Design branch on the landing page to see its completion, churn (amount of feedback from the Implementer and other agents that we addressed, or remains open)
+From a Code branch, the user can open its Design page to see the current Design revision and completion status, along
+with Design findings that have been addressed or remain open.

@@ -22,26 +22,24 @@ The initial bootstrap path is:
 
 1. The user writes the Nom Charter on the Charter branch.
 2. The user manually prompts Codex through the Nom workflow.
-3. This produces the `design/bootstrap` branch and the `code/bootstrap` branch.
+3. This produces the `code/bootstrap` branch, with canonical Design artifacts under `.nom/design/`.
 4. The resulting implementation is Nom v0.
-5. Nom v0 reads the Charter branch and generates a new Design branch.
+5. Nom v0 reads the Charter branch and generates a new Design revision on a Code branch.
 6. Nom v0 autonomously writes, tests, debugs, and refines `code/1.x`.
 7. The resulting implementation is Nom v1.
 
 Before using the prompts below, commit all Charter inputs and confirm that the `master` branch worktree is clean. Ensure
-that both generated branches exist, creating only those that are missing:
+that the bootstrap Code branch exists, creating it only if it is missing:
 
 ```bash
 git switch master
-git show-ref --verify --quiet refs/heads/design/bootstrap || git branch design/bootstrap master
 git show-ref --verify --quiet refs/heads/code/bootstrap || git branch code/bootstrap master
 ```
 
-Existing generated branches may contain partial, divergent, or otherwise unexpected bootstrap work. Do not reset or
-recreate the branches merely to manufacture a clean starting point. Record their actual heads and lineage, inspect their
-content, and treat it as generated input that may be preserved, modified, or removed to satisfy the current
-requirements. If reconciliation exposes a Charter or product conflict, report that conflict instead of inventing a
-resolution.
+The existing generated branch may contain partial, divergent, or otherwise unexpected bootstrap work. Do not reset or
+recreate it merely to manufacture a clean starting point. Record its actual head and lineage, inspect its content, and
+treat it as generated input that may be preserved, modified, or removed to satisfy the current requirements. If
+reconciliation exposes a Charter or product conflict, report that conflict instead of inventing a resolution.
 
 ### 2.1 Bootstrap Helper
 
@@ -54,12 +52,11 @@ not start the local web server, launch or open the web UI, or require a browser.
 subcommand remains the way to launch the normal local web UI.
 
 When run from the project repository, `nom bootstrap` must inspect the current bootstrap state across the `master`
-branch, the `design/bootstrap` branch, and the `code/bootstrap` branch without requiring the human to check out each
-one. It should report at least:
+branch and the `code/bootstrap` branch without requiring the human to check out either one. It should report at least:
 
-- Missing branches, current revisions and lineage, dirty relevant workspaces, and unusual or conflicting branch state.
+- A missing branch, current revisions and lineage, dirty relevant workspaces, and unusual or conflicting branch state.
 - Whether the Charter inputs used by the Design still match the current `master` branch.
-- Open or blocking questions in `QUESTIONS.md`, including questions found in an unexpected branch or location.
+- Open or blocking questions in `.nom/design/QUESTIONS.md`, including questions found in an unexpected location.
 - The latest recorded Design status and whether the Design needs an Architect pass.
 - Undispositioned entries in `DESIGN-FINDINGS.md` that require the Architect.
 - Whether `BOOTSTRAP-TASKS.md` matches the current Design and which implementation tasks remain or are blocked.
@@ -67,15 +64,16 @@ one. It should report at least:
   apply to the current Design and Code revisions.
 
 The command must explain inconsistencies rather than guessing or modifying the repository. It should finish with one
-primary next action and the reason for it, choosing among initializing missing branches, answering `QUESTIONS.md`,
-running or resuming the Architect prompt, running or resuming the Implementer prompt, running a fresh QA prompt,
-manually reconciling unsafe state, or declaring the manual bootstrap complete. It may also list secondary blockers.
+primary next action and the reason for it, choosing among initializing the missing branch, answering
+`.nom/design/QUESTIONS.md`, running or resuming the Architect prompt, running or resuming the Implementer prompt,
+running a fresh QA prompt, manually reconciling unsafe state, or declaring the manual bootstrap complete. It may also
+list secondary blockers.
 
 ## 3. Human-Driven Bootstrap Prompts
 
 The initial manual bootstrap intentionally uses only three prompts. It does not attempt to simulate Nom's eventual
-runtime orchestration before Nom exists. During this manual stage, the Architect may advance the `design/bootstrap`
-branch, and the Implementer and quality agent may advance the `code/bootstrap` branch. The generated Nom implementation
+runtime orchestration before Nom exists. During this manual stage, the Architect, Implementer, and quality agent advance
+the `code/bootstrap` branch sequentially within their artifact-ownership boundaries. The generated Nom implementation
 must still satisfy the safe integration, durable recovery, and review requirements elsewhere in this contract.
 
 Run 3.1 and resume or repeat it until the Architect reports `COMPLETE`. Do not start 3.2 while the Design is
@@ -85,20 +83,20 @@ implementation or QA exposes an architecture-level problem, rerun 3.1 until the 
 resume 3.2.
 
 At the beginning of each prompted session, the agent should resolve the named branch heads to full commit IDs and report
-the commits used. When the Architect needs a product-level answer, it must write the question to `QUESTIONS.md` on the
-`design/bootstrap` branch rather than asking the user directly. Each question should include a stable ID, an `OPEN` or
-`ANSWERED` status, context, options, the Architect's recommendation, whether it blocks progress, and a reference to the
-user's answer on the Charter branch when available. The user records and commits the answer on the `master` branch but
-does not edit `QUESTIONS.md`. On the next Architect session, the Architect verifies the answer in the current Charter,
-changes the question to `ANSWERED`, and records the exact Charter revision and file that contain the answer. Until then,
-the question remains `OPEN`. This keeps user answers durable and available to other Design sessions while preserving the
-Architect's ownership of Design artifacts.
+the commits used. When the Architect needs a product-level answer, it must write the question to
+`.nom/design/QUESTIONS.md` on the `code/bootstrap` branch rather than asking the user directly. Each question should
+include a stable ID, an `OPEN` or `ANSWERED` status, context, options, the Architect's recommendation, whether it blocks
+progress, and a reference to the user's answer on the Charter branch when available. The user records and commits the
+answer on the `master` branch but does not edit `.nom/design/QUESTIONS.md`. On the next Architect session, the Architect
+verifies the answer in the current Charter, changes the question to `ANSWERED`, and records the exact Charter revision
+and file that contain the answer. Until then, the question remains `OPEN`. This keeps user answers durable and available
+to other Design sessions while preserving the Architect's ownership of Design artifacts.
 
 Design- and product-level findings from implementation and QA are appended to `DESIGN-FINDINGS.md` on the
 `code/bootstrap` branch. Each finding must have a stable ID, type, source, relevant Charter, Design, and Code revisions,
 evidence and impact, and whether it blocks progress. Entries are append-only. On every Architect run, the Architect must
 read the file and record a disposition for each previously undispositioned finding in the canonical Design decision and
-revision log. Product-level findings that require a user decision become questions in `QUESTIONS.md`.
+revision log. Product-level findings that require a user decision become questions in `.nom/design/QUESTIONS.md`.
 
 Each QA iteration appends a record to `BOOTSTRAP-QA.md` on the `code/bootstrap` branch containing the Design and Code
 revisions assessed, quality status, repeatable checks and results, whether the live self-development test ran, and its
@@ -107,44 +105,43 @@ use them as runtime state or as a substitute for its own validation.
 
 ### 3.1 Generate the Bootstrap Design
 
-Use this prompt for the Architect on the `design/bootstrap` branch:
+Use this prompt for the Architect on the `code/bootstrap` branch:
 
 ```text
 Act as the Architect for the Nom bootstrap.
 
 Read the exact Charter snapshot at the head of the `master` branch, including
-charter.md, ui.md, and bootstrap.md. Work on the `design/bootstrap` branch in a
-dedicated worktree.
-Do not implement Nom or edit the Charter inputs.
+charter.md, ui.md, and bootstrap.md. Work in a dedicated writable worktree on
+the `code/bootstrap` branch. Do not implement Nom, edit the Charter inputs, or
+modify files outside `.nom/design/`.
 
-Inspect all existing content and lineage on the `design/bootstrap` branch rather
-than assuming a clean starting state. If the `code/bootstrap` branch contains
-DESIGN-FINDINGS.md, read it and inspect relevant Code when needed. Record a
-clear disposition for every finding not already addressed by the canonical
-Design, revising the architecture and tasks where appropriate.
+Inspect all existing content and lineage on the `code/bootstrap` branch rather
+than assuming a clean starting state. If it contains DESIGN-FINDINGS.md, read it
+and inspect relevant Code when needed. Record a clear disposition for every
+finding not already addressed by the canonical Design, revising the architecture
+and tasks where appropriate.
 
-Generate and commit all canonical Design artifacts required by the Charter. The
-Design must include the run manifest and exact inputs, architecture, interfaces
-and data model, security and execution assumptions, implementation and
-integration strategy, testing and acceptance strategy, quality plan, decision
-and revision log, and completion criteria. Resolve technical choices yourself
-unless they change product intent.
+Generate and commit all canonical Design artifacts required by the Charter under
+`.nom/design/`. The Design must include the run manifest and exact inputs,
+architecture, interfaces and data model, security and execution assumptions,
+implementation and integration strategy, testing and acceptance strategy,
+quality plan, decision and revision log, and completion criteria. Resolve
+technical choices yourself unless they change product intent.
 
 Record the current COMPLETE or INCOMPLETE Design status and its Charter input in
 a documented Design artifact so `nom bootstrap` can inspect it. Define stable,
 human-readable conventions for question status, finding dispositions, task
 progress, and QA records without turning those files into Nom runtime state.
 
-Write any product-level question to QUESTIONS.md on the `design/bootstrap`
-branch with its context, options, your recommendation, and whether it blocks
-progress. Do not ask the user directly, and continue all work that is not
-blocked by the answer. When the current Charter contains an answer, mark the
-question ANSWERED and record the exact Charter revision and file. Otherwise keep
-it OPEN.
+Write any product-level question to `.nom/design/QUESTIONS.md` with its context,
+options, your recommendation, and whether it blocks progress. Do not ask the
+user directly, and continue all work that is not blocked by the answer. When the
+current Charter contains an answer, mark the question ANSWERED and record the
+exact Charter revision and file. Otherwise keep it OPEN.
 
-Create a canonical tasks.md with stable task IDs, dependency order, acceptance
-criteria, and required tests. Start each implementation task with an unchecked
-Markdown checkbox. Make each task small enough to implement and verify
+Create a canonical `.nom/design/tasks.md` with stable task IDs, dependency order,
+acceptance criteria, and required tests. Start each implementation task with an
+unchecked Markdown checkbox. Make each task small enough to implement and verify
 independently. The Implementer will mirror these task IDs and completion status
 into BOOTSTRAP-TASKS.md on the `code/bootstrap` branch; that mirror must not
 redefine the canonical tasks.
@@ -155,15 +152,14 @@ but it must remain useful and accurate as later tasks add coordination artifacts
 and acceptance evidence.
 
 Create an implementation-independent black-box acceptance harness and fixtures
-on the `design/bootstrap` branch. Freeze them in the Design commit before Code
-implementation begins. Provide separate entry points for the repeatable
-orchestration suite and the live self-development test, and document them in the
-canonical Design.
+under `.nom/design/`. Freeze them in the Design commit before Code implementation
+begins. Provide separate entry points for the repeatable orchestration suite and
+the live self-development test, and document them in the canonical Design.
 Implementers must not modify the harness to make generated Code pass. Document
-exact Podman commands that run each entry point from its Design commit against
-the generated `nom` executable. The commands must use disposable container-local
-repository copies and must not mount the real repository or any of its worktrees
-writable.
+exact Podman commands that run each entry point from its immutable Design
+revision against the generated `nom` executable. The commands must use
+disposable container-local repository copies and must not mount the real
+repository or any of its worktrees writable.
 
 Before finishing, review the entire Design end to end. Check every artifact for
 internal consistency and trace every Charter and bootstrap requirement to
@@ -178,9 +174,10 @@ task plan can implement it, the acceptance strategy can verify it, and no
 blocking question or known Design issue remains. Otherwise use INCOMPLETE and
 list the blockers and remaining Design work.
 
-Commit the reviewed Design and report the exact Design commit, Design status,
-review evidence, ordered task list, dispositions of DESIGN-FINDINGS.md entries,
-whether QUESTIONS.md needs a user answer, and the first ready task.
+Commit only the reviewed `.nom/design/` changes and report the exact Design
+commit, Design status, review evidence, ordered task list, dispositions of
+DESIGN-FINDINGS.md entries, whether `.nom/design/QUESTIONS.md` needs a user
+answer, and the first ready task.
 ```
 
 ### 3.2 Implement the Complete Bootstrap Design
@@ -191,21 +188,21 @@ Use this prompt for the Implementer on the `code/bootstrap` branch:
 Act as the Implementer for the complete Nom bootstrap Design.
 
 Work in a dedicated writable worktree on the `code/bootstrap` branch. Read the
-heads of the `master` branch and the `design/bootstrap` branch and record all
-resolved commit IDs. Do not edit the Charter inputs or canonical Design
-artifacts.
+heads of the `master` branch and the `code/bootstrap` branch and record all
+resolved commit IDs. Do not edit the Charter inputs or anything under
+`.nom/design/`.
 
-Inspect the existing `code/bootstrap` branch without assuming that it shares a
-clean starting point with the Charter or Design branches. Treat its content as
-generated input that may be preserved, modified, or removed. Reconcile existing
-Code and progress records with the current Design, and stop only when continuing
-requires a product or architecture decision.
+Inspect the existing `code/bootstrap` branch without assuming a clean starting
+point. Treat its content as generated input that may be preserved, modified, or
+removed, except that `.nom/design/` is Architect-owned and read-only for this
+role. Reconcile existing Code and progress records with the current Design, and
+stop only when continuing requires a product or architecture decision.
 
-Read the complete Design and its canonical tasks.md. Create or update
-BOOTSTRAP-TASKS.md on the `code/bootstrap` branch. Record the exact Charter and
-Design commits, then mirror every canonical task ID as a Markdown checkbox. The
-file tracks implementation status only; do not rewrite task definitions there.
-If the Design changed, add new or revised task IDs and mark superseded IDs
+Read the complete Design and its canonical `.nom/design/tasks.md`. Create or
+update BOOTSTRAP-TASKS.md on the `code/bootstrap` branch. Record the exact Charter
+and Design revisions, then mirror every canonical task ID as a Markdown checkbox.
+The file tracks implementation status only; do not rewrite task definitions
+there. If the Design changed, add new or revised task IDs and mark superseded IDs
 explicitly rather than silently deleting history.
 
 BOOTSTRAP-TASKS.md is only a progress ledger for the initial human-driven
@@ -234,8 +231,8 @@ advice must be based on repository evidence and must never modify that state.
 
 You may use internal task branches when useful, but merge each completed task's
 Code, tests, and BOOTSTRAP-TASKS.md update into the `code/bootstrap` branch
-before starting the next task. Do not modify the frozen acceptance harness on
-the `design/bootstrap` branch.
+before starting the next task. Do not modify `.nom/design/`, including the frozen
+acceptance harness.
 
 Continue until every task is checked off or progress is genuinely blocked. Send
 Design- or product-level findings to the Architect by appending them to
@@ -262,11 +259,10 @@ Independently inspect the implementation rather than relying on the Implementer'
 summary or assumptions.
 
 Work in a dedicated writable worktree on the `code/bootstrap` branch. Resolve
-and record the heads of the `master` branch, the `design/bootstrap` branch, and
-the `code/bootstrap` branch. Read the Charter, complete Design,
-BOOTSTRAP-TASKS.md, DESIGN-FINDINGS.md when present, BOOTSTRAP-QA.md when
-present, and the frozen acceptance harness. Do not edit the Charter, canonical
-Design, or frozen acceptance harness.
+and record the heads of the `master` branch and the `code/bootstrap` branch. Read
+the Charter, complete Design under `.nom/design/`, BOOTSTRAP-TASKS.md,
+DESIGN-FINDINGS.md when present, BOOTSTRAP-QA.md when present, and the frozen
+acceptance harness. Do not edit the Charter or anything under `.nom/design/`.
 
 Inspect existing Code and progress records without assuming a clean bootstrap
 lineage. Treat manual changes as generated state that may be preserved, modified,
@@ -425,9 +421,9 @@ later Design, Code, or test change invalidates the live result and requires anot
 Both suites must run inside Podman against disposable repositories. Neither suite may modify the real repository or its
 branches.
 
-The live self-development test's synthetic Charter updates and generated `design/*` and `code/*` branches are discarded
-after evidence is collected. The later production Nom v0-to-v1 run described in the bootstrap path is a separate,
-user-initiated event after Nom v0 is accepted.
+The live self-development test's synthetic Charter updates and generated `code/*` branches are discarded after evidence
+is collected. The later production Nom v0-to-v1 run described in the bootstrap path is a separate, user-initiated event
+after Nom v0 is accepted.
 
 ### 10.1 Repeatable Orchestration Test
 
@@ -445,7 +441,8 @@ remains the only production agent runtime. The tests must demonstrate:
 - Mid-run Charter update reconciliation.
 - Restart and resume.
 - Stale-work detection.
-- Reconciliation of manual changes to active Design and Code branches without requiring user intervention.
+- Reconciliation of manual changes to active Code branches, including Design collateral, without requiring user
+  intervention.
 - Safe failure without false completion.
 - Durable revision traceability.
 - Read-only `nom bootstrap` guidance for missing, inconsistent, blocked, in-progress, QA-ready, and completed states.
@@ -465,8 +462,8 @@ Using real Codex agents and a disposable repository inside Podman, Nom v0 must:
 6. Restart the Nom process during the run and resume without losing the Charter event, duplicating integration, or
    requiring the user to recreate state.
 7. Implement, test, review, and refine the work until the Architect declares completion.
-8. Produce a working Nom v1 that passes the implementation-independent acceptance harness and fixtures frozen on the
-   Design branch before implementation began.
+8. Produce a working Nom v1 that passes the implementation-independent acceptance harness and fixtures frozen under
+   `.nom/design/` on the Code branch before implementation began.
 9. Launch the generated Nom v1 and have v1 complete a small fixture Charter-to-Design-to-Code change without
    user-authored Design artifacts or direct manual prompting of its agents.
 10. Trace the completed work to the Charter, final Design, and reviewed Code revisions, including the Charter update
