@@ -60,7 +60,7 @@ branch and the `code/bootstrap` branch without requiring the human to check out 
 - The latest recorded Design status and whether the Design needs an Architect pass.
 - Undispositioned entries in `DESIGN-FINDINGS.md` that require the Architect.
 - Whether `BOOTSTRAP-TASKS.md` matches the current Design and which implementation tasks remain or are blocked.
-- The latest QA status in `BOOTSTRAP-QA.md`, including whether repeatable checks and live self-development acceptance
+- The latest QA status in `BOOTSTRAP-QA.md`, including whether repeatable checks and live development acceptance
   apply to the current Design and Code revisions.
 
 The command must explain inconsistencies rather than guessing or modifying the repository. It should finish with one
@@ -99,7 +99,7 @@ read the file and record a disposition for each previously undispositioned findi
 revision log. Product-level findings that require a user decision become questions in `.nom/design/QUESTIONS.md`.
 
 Each QA iteration appends a record to `BOOTSTRAP-QA.md` on the `code/bootstrap` branch containing the Design and Code
-revisions assessed, quality status, repeatable checks and results, whether the live self-development test ran, and its
+revisions assessed, quality status, repeatable checks and results, whether the live development test ran, and its
 result. The bootstrap helper reads these coordination files only to advise the human; normal Nom orchestration must not
 use them as runtime state or as a substitute for its own validation.
 
@@ -154,7 +154,7 @@ and acceptance evidence.
 Create an implementation-independent black-box acceptance harness and fixtures
 under `.nom/design/`. Freeze them in the Design commit before Code implementation
 begins. Provide separate entry points for the repeatable orchestration suite and
-the live self-development test, and document them in the canonical Design.
+the live development test, and document them in the canonical Design.
 Implementers must not modify the harness to make generated Code pass. Document
 exact Podman commands that run each entry point from its immutable Design
 revision against the generated `nom` executable. The commands must use
@@ -294,31 +294,32 @@ checks and the repeatable suite. Continue within this run until no known
 actionable defect remains or an issue requires an Architect or user decision.
 Do not mark an incomplete Design task complete merely to make QA pass.
 
-Do not run the live self-development test while a repeatable check is failing or
+Do not run the live development test while a repeatable check is failing or
 after this QA iteration has changed Code or tests. Run it only when the current
 iteration has found no required change and all repeatable checks pass. Use the
-separate live-test command documented by the Architect. Treat any live-test
+separate live development test command documented by the Architect. Treat any
 failure as an actionable defect or blocker. If it fails, investigate and fix it
 as above, rerun the repeatable checks, and report NEEDS_WORK; leave the next live
 attempt to a fresh independent QA iteration.
 
 Then output exactly one quality status: PASS, NEEDS_WORK, or BLOCKED. Use PASS
 only if every current Design task is checked off in BOOTSTRAP-TASKS.md, every
-repeatable check and the live self-development test passes, no blocking finding
+repeatable check and the live development test passes, no blocking finding
 or known actionable defect remains, and this QA iteration made no Code or test
 changes. If this iteration committed any fix, use NEEDS_WORK even when all
 repeatable checks now pass so a new independent no-change QA iteration can run
 the live test. Use BLOCKED when progress requires an Architect or user decision.
 
 Append this iteration's exact Design and assessed Code revisions, quality status,
-checks and results, live-test status, and remaining blockers to BOOTSTRAP-QA.md.
+checks and results, live development test status, and remaining blockers to
+BOOTSTRAP-QA.md.
 Commit the record to the `code/bootstrap` branch. Do not rewrite prior iteration
 records or treat this file as Nom runtime state.
 
 Report the final Code commit, quality status, commands and scenarios tested,
 failures found, root causes and fixes, regression coverage, remaining risks, and
-blocked issues. State explicitly whether the live self-development test ran and
-its result.
+blocked issues. State explicitly whether the live development test ran and its
+result.
 ```
 
 ## 4. Bootstrap Operating Profile
@@ -414,16 +415,16 @@ criteria.
 
 Nom v0 is accepted only after both of the following pass.
 
-The repeatable suite should run throughout implementation and QA. Reserve the live self-development test for a candidate
-that has passed the repeatable suite without requiring Code or test changes in the current independent QA iteration. Any
+The repeatable suite should run throughout implementation and QA. Reserve the live development test for a candidate that
+has passed the repeatable suite without requiring Code or test changes in the current independent QA iteration. Any
 later Design, Code, or test change invalidates the live result and requires another live test before acceptance.
 
 Both suites must run inside Podman against disposable repositories. Neither suite may modify the real repository or its
 branches.
 
-The live self-development test's synthetic Charter updates and generated `code/*` branches are discarded after evidence
-is collected. The later production Nom v0-to-v1 run described in the bootstrap path is a separate, user-initiated event
-after Nom v0 is accepted.
+The live development test's synthetic Charter updates and generated `code/*` branches are discarded after evidence is
+collected. The later production Nom v0-to-v1 run described in the bootstrap path is a separate, user-initiated
+self-hosting event after Nom v0 is accepted.
 
 ### 10.1 Repeatable Orchestration Test
 
@@ -449,28 +450,48 @@ remains the only production agent runtime. The tests must demonstrate:
   This item applies only to Nom v0 on the `code/bootstrap` branch. The `nom bootstrap` advisor exists for the initial
   human-driven bootstrap, and the harness must not require it of Nom v1 or later generated versions.
 
-### 10.2 Live Self-Development Test
+### 10.2 Live Development Test
 
-Using real Codex agents and a disposable repository inside Podman, Nom v0 must:
+The frozen acceptance harness must prepare a disposable repository whose immutable Charter describes a base-7
+command-line expression calculator. The fixture contract requires:
 
-1. Run from an immutable revision of the `code/bootstrap` branch with a user-provided token budget.
-2. Read an immutable Nom Charter revision.
-3. Have the Architect generate the complete bootstrap Design without user-authored Design artifacts.
-4. Create or update a `code/1.x` lineage derived from an immutable Code revision.
-5. Receive a controlled Charter update while a Codex turn is active, deliver it at the next safe turn boundary, and
-   carry it through a new Design revision into reviewed Code without discarding the run.
-6. Restart the Nom process during the run and resume without losing the Charter event, duplicating integration, or
+- An executable named `calc`.
+- A single expression supplied as a command-line argument.
+- Signed integer arithmetic using `+`, `-`, `*`, and `/`, with standard precedence and parentheses.
+- Integer division that truncates toward zero and rejects division by zero with a nonzero exit status.
+- Operands and results represented in the active base. Successful evaluation prints only the normalized result followed
+  by a newline to standard output and exits successfully.
+- An invalid digit to print `nice try` to standard error and exit unsuccessfully. In base 7, digits greater than 6 are
+  invalid; after the Charter changes to base 8, digit 7 becomes valid and digits greater than 7 trigger the message.
+
+The harness must also freeze implementation-independent black-box tests for this contract before the run. These tests
+remain outside the agents' writable repository. Agent-authored unit and integration tests supplement but do not replace
+the frozen tests.
+
+The test must use a prepared container image containing the Codex npm package at the version recorded by the Design.
+Preparing this reusable image is harness setup, not part of each live test run.
+
+Using real Codex agents and the disposable repository inside Podman, Nom v0 must then:
+
+1. Build the Nom candidate in Podman and transfer the resulting binary into the disposable test container.
+2. After creating an ephemeral container from the prepared image, copy the required Codex authentication credentials
+   from the host with restrictive permissions. Never include them in an image, container snapshot, log, test artifact,
+   or generated repository, and destroy the container and its copied credential files after the test even if it fails.
+3. Start the Nom run with a user-provided token budget and record the candidate and immutable calculator Charter
+   revisions.
+4. Have the Architect generate the complete Design without user-authored Design artifacts.
+5. Create or update a `code/1.x` lineage derived from an immutable Code revision.
+6. Receive a controlled Charter update switching the calculator to base 8 while a Codex turn is active, deliver it at
+   the next safe turn boundary, and carry it through a new Design revision into reviewed Code without discarding the
+   run.
+7. Restart the Nom process during the run and resume without losing the Charter event, duplicating integration, or
    requiring the user to recreate state.
-7. Implement, test, review, and refine the work until the Architect declares completion.
-8. Produce a working Nom v1 that passes the implementation-independent acceptance harness and fixtures frozen under
-   `.nom/design/` on the Code branch before implementation began.
-9. Launch the generated Nom v1 and have v1 complete a small fixture Charter-to-Design-to-Code change without
-   user-authored Design artifacts or direct manual prompting of its agents.
-10. Trace the completed work to the Charter, final Design, and reviewed Code revisions, including the Charter update
-    received during the run.
-
-The self-development test compares required behavior, tests, and traceability. It does not require source-code equality
-or a cleanroom reproduction.
+8. Implement, test, review, and refine the work until the Architect declares completion.
+9. Pass the frozen black-box tests against the final base-8 calculator, including precedence, parentheses, division,
+   acceptance of digit 7, and rejection of digits greater than 7. All agent-authored unit and integration tests must
+   also pass.
+10. Trace the completed work to the initial and updated Charter revisions, final Design revision, reviewed Code
+    revision, and completion decision.
 
 ## 11. Explicit Non-Goals for v0
 
