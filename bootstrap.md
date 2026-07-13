@@ -299,7 +299,8 @@ after this QA iteration has changed Code or tests. Run it only when the current
 iteration has found no required change and all repeatable checks pass. Use the
 separate live development test command documented by the Architect. Treat any
 failure as an actionable defect or blocker. If it fails, investigate and fix it
-as above, rerun the repeatable checks, and report NEEDS_WORK; leave the next live
+as above, rerun the repeatable checks, also rerun the live development test and
+iterate on further fixes if need, and report NEEDS_WORK; leave the next live
 attempt to a fresh independent QA iteration.
 
 Then output exactly one quality status: PASS, NEEDS_WORK, or BLOCKED. Use PASS
