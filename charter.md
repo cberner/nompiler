@@ -324,6 +324,24 @@ Whenever Codex reports the remaining weekly usage quota, Nom must stop schedulin
 is below 15 percent. The run pauses at a safe boundary without losing work and may resume only after the safety
 condition no longer applies. Nom must show the run's token budget, reported usage, and weekly quota status in the UI.
 
+### 7.9 Configuration and Execution
+
+Nom should expose the following configuration options to the user as command-line flags:
+* Port number (default 7777) for the local web UI
+* Coding model to use (default GPT-5.6-Sol)
+* Architect reasoning level (default extra-high)
+* Implementer reasoning level (default medium)
+* Reviewer/QA reasoning level (default high)
+
+Additional configuration options should only be added if strictly necessary. The user MUST NOT be required to configure
+minor environment details such as container images, registries, or specialized toolchains. Nom is responsible for setting
+up the required execution environment for its agents and for projects.
+
+If the user specifies other configuration in the Charter for a project, and specifies that the user will provide
+those values. Only then, may Nom require that those options be provided to perform a Run and build the project. For
+example, the user might specify that the project will use a specific third-party API and that they will provide an API
+key. In that case, each agent should verify that the API key is provided when beginning its work.
+
 ## 8. Repository Safety and Traceability
 
 ### 8.1 Repository Hygiene
@@ -392,8 +410,8 @@ Tests must operate on disposable repository copies and container-local writable 
 provided as read-only input, but a test must not receive a writable bind mount or another capability that would let it
 change the repository, its Git metadata, or externally meaningful branches.
 
-This requirement applies both to Nom's own test and acceptance suites and to tests Nom runs while developing generated
-software. Builds, static analysis, and other validation that can execute project-controlled code must use the same
+This requirement applies to all tests Nom runs while developing generated software.
+Builds, static analysis, and other validation that can execute project-controlled code must use the same
 isolation. The Design chooses the container topology and artifact-transfer mechanism, but isolated commands must not
 silently fall back to execution against the host repository when Podman is unavailable.
 
@@ -404,6 +422,8 @@ Nom should be able to build itself.
 Self-hosting means a Nom version produced through this workflow can process a later Charter change through a new
 Architect-generated Design revision and a reviewed Code change without the user authoring Design artifacts or directly
 prompting implementation agents.
+
+All of the requirements for developing a project apply to Nom's own development, so its tests and acceptance suite must be sandboxed...etc.
 
 A new Nom version can either continue from the previous Code branch or create a clean new Code branch from the Charter.
 
