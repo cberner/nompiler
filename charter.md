@@ -147,7 +147,7 @@ mechanically verifiable run metadata. Nom must reject an Implementer or Reviewer
 Design paths. Reviewers report Code findings to the Architect for canonical disposition and to Implementers for any
 resulting Code changes.
 
-## 4. Charter
+### 3.3 Charter
 
 The Charter captures what the user wants, not how the software should be implemented.
 
@@ -170,7 +170,7 @@ An active scoped contract may narrow the work required for a milestone, but it m
 intent or durable rules. If normative inputs conflict without a clear interpretation, the Architect must stop and ask
 the user rather than silently choosing one.
 
-## 5. Architecture and Design Artifacts
+### 3.4 Architecture and Design Artifacts
 
 Nom's Architect agent reads the Charter and produces generated architecture documents under `.nom/design/` on the
 selected Code branch.
@@ -193,7 +193,7 @@ The canonical Design artifacts for a run must include, as appropriate to the pro
 The architecture is mainly for Nom's Implementer agents. The user can read it, but the system must not depend on
 the user doing so.
 
-## 6. Tasks
+### 3.5 Tasks
 
 The Architect agent converts the generated architecture into implementation tasks and owns their canonical definitions
 under `.nom/design/`.
@@ -210,14 +210,29 @@ Each task should include:
 Task definitions are versioned with the Design on Code branches. Live execution state must be maintained separately from
 the canonical task definitions so it can change without rewriting the Design.
 
-## 7. Workflow
+## 4. Workflow
 
-Nom operates as a high-level loop.
+Nom operates as a high-level reconciliation loop. Each run separately records:
 
-Nom must durably distinguish runs that are running, waiting for an agent, waiting for the user, reconciling an update,
-paused, operationally blocked, failed, cancelled, or completed.
+- A **workflow phase** describing the work Nom is performing.
+- A **run status** describing whether that work can currently progress. Nom must distinguish at least running, waiting
+  for an agent, waiting for the user, reconciling an update, paused by the user, paused for token budget, paused for
+  weekly quota, operationally blocked, failed, cancelled, and completed.
 
-### 7.1 Charter Intake
+Correctable feedback changes the workflow phase without making the run operationally blocked. Any nonterminal phase may
+be paused, cancelled, interrupted by a Charter update, or affected by an operational failure. Nom preserves its phase
+and immutable inputs so it can reconcile and resume safely.
+
+### 4.1 Charter Intake
+
+This is the initial workflow phase.
+
+Allowed transitions:
+
+- If intake succeeds, the run moves to Research and Architecture. Minor ambiguities do not prevent this transition;
+  Nom records and displays non-blocking clarification questions while continuing work that is unaffected by them.
+- If an unanswered product question prevents safe progress, the phase remains Charter Intake and the run status becomes
+  waiting for the user as described in Charter Clarification and User Decisions.
 
 The user writes or updates the Charter branch, or provides input through the Nom UI. Nom reads the Charter and
 identifies important ambiguities.
@@ -240,7 +255,21 @@ If the Charter changes after a run completes, the completed run remains an immut
 offers the user a successor run with the previous final Code revision as its baseline. The user may select a new or
 existing Code branch for that run. Nom must not start the successor run without the user's approval.
 
-### 7.2 Research and Architecture
+### 4.2 Charter Clarification and User Decisions
+
+The Architect asks the user only about product decisions or safety-sensitive policy changes and identifies the work the
+answer blocks. Unaffected work continues. If no safe work remains, the run waits for the user rather than becoming
+operationally blocked. After an answer through the UI or a relevant Charter revision, Nom records it, reconciles Charter
+Intake, and resumes the appropriate phase.
+
+### 4.3 Research and Architecture
+
+Allowed transitions:
+
+- If the architecture is ready, the run moves to Task Planning.
+- If a product-level answer is required, Nom follows Charter Clarification and User Decisions while continuing any work
+  not blocked by that answer.
+- A Design-level finding from a later phase returns the run here with its evidence and immutable inputs.
 
 Nom researches relevant prior art, libraries, papers, design patterns, and comparable products when useful.
 
@@ -251,13 +280,27 @@ only for product-level decisions.
 Architecture is a continuing reconciliation loop, not a one-time generation step. The Architect revises the Design when
 the Charter changes or implementation and review reveal new information.
 
-### 7.3 Task Planning
+### 4.4 Task Planning
+
+Allowed transitions:
+
+- When the Design and task plan are ready, their candidate moves to Candidate Validation before publication and before
+  implementation begins.
+- If planning reveals a Design issue, the run returns to Research and Architecture.
 
 The Architect converts the architecture into implementation tasks and revises them as the Design evolves.
 
 Tasks should be as independent as practical so Nom can execute them in parallel when appropriate.
 
-### 7.4 Implementation
+### 4.5 Implementation
+
+Allowed transitions:
+
+- When an Implementer produces a task candidate and its required tests have run, the candidate moves to Candidate
+  Validation. Producing a candidate does not complete the task.
+- If the Implementer reports a Design-level finding, the run returns to Research and Architecture.
+- A task becomes complete only after its exact approved candidate passes Controlled Integration. When all planned tasks
+  are complete, the run moves to Iteration and Refinement.
 
 Nom gives each active agent an isolated writable workspace based on an immutable Code revision. No two active agents may
 share a writable checkout. Nom must retain enough durable state to recover the workspace and attribute its results.
@@ -272,9 +315,26 @@ reconciliation, the manual content has no special preservation status.
 If an Implementer agent hits ambiguity, it asks the Architect. The Architect answers, revises Design artifacts if
 necessary, or escalates to the user through the Nom UI.
 
-### 7.5 Review
+### 4.6 Candidate Validation
 
-An independent Reviewer evaluates completed work against:
+Nom validates every Design-and-task candidate before publishing it and every implementation candidate before sending it
+to an independent Reviewer. Applicable validation includes artifact-ownership rules, required project checks,
+repository hygiene and secret scanning, traceability, and candidate consistency. Validation that can execute
+project-controlled code must follow the Test Isolation requirements.
+
+A failure rejects the candidate and follows System Error Handling and Autonomous Recovery. Passing Design work may be
+published and begin Implementation; the exact passing implementation candidate moves to Review.
+
+### 4.7 Review
+
+Allowed transitions:
+
+- Approval of the exact validated candidate moves it to Controlled Integration.
+- A correctable Code finding returns to Implementation.
+- A Design-level finding returns to Research and Architecture.
+- A stale candidate is rejected and reconciled from current immutable inputs.
+
+An independent Reviewer evaluates validated candidate work against:
 
 - The task
 - Generated architecture artifacts
@@ -287,9 +347,25 @@ The Reviewer can recommend approval, request changes, or identify follow-up work
 writes the canonical review summary, and decides whether to accept the work, revise the Design, or create follow-up
 tasks.
 
-### 7.6 Iteration and Refinement
+### 4.8 Controlled Integration
 
-Nom repeats architecture, task planning, implementation, and review until the requested feature set is complete.
+Nom integrates only the exact implementation candidate that passed Candidate Validation and independent Review. Before
+advancing the selected Code branch, Nom revalidates repository safety, verifies the candidate is unchanged, and ensures
+its Charter, Design, and Code inputs are current. Integration advances the branch atomically from its expected revision;
+rejections follow System Error Handling and Autonomous Recovery.
+
+After successful integration, Nom begins the next ready task in Implementation. When all planned tasks are integrated,
+the run moves to Iteration and Refinement.
+
+### 4.9 Iteration and Refinement
+
+Allowed transitions:
+
+- Findings that require Design changes return to Research and Architecture.
+- Findings covered by the current Design become new or revised tasks through Task Planning and Implementation.
+- When no unresolved blocking findings remain, the run moves to Completion Assessment.
+
+Nom repeats the workflow phases above until the requested feature set is complete.
 
 After initial completion, Nom runs refinement passes for:
 
@@ -305,16 +381,52 @@ implemented and the Code has reached a good level of quality.
 
 The Architect's completion judgment must identify the immutable Charter, Design, and Code revisions it assessed and be
 supported by passing required checks, resolved blocking findings, and a written quality assessment. A failed, paused,
-canceled, or blocked run must not be reported as complete.
+cancelled, or blocked run must not be reported as complete.
 
-### 7.7 Durable State and Recovery
+### 4.10 Completion Assessment
+
+If the completion criteria above are not met, the findings return to the appropriate phase. Otherwise, the run becomes
+completed. Completed, cancelled, and failed are terminal; a later Charter change may create a successor run but does not
+alter the completed run.
+
+### 4.11 Pause, Operational Block, Failure, and Resume
+
+The user may pause or cancel a run at any time. Pausing takes effect at a safe boundary and preserves durable state;
+resuming reconciles that state before continuing. Cancellation is terminal and must never be reported as completion.
+
+Token-budget exhaustion may occur from any non-terminal workflow phase. It pauses the run at a safe agent-turn boundary
+and prevents Nom from scheduling another agent turn until the user authorizes additional budget. Weekly-quota safety
+pauses behave likewise and may resume only when the safety condition clears. Nom must report either pause without
+scheduling an over-budget agent turn.
+
+Operationally blocked is reserved for a condition Nom cannot safely repair after its automatic attempts; the UI must
+show the condition and required user action. An unrecoverable condition makes the run failed. Neither status permits
+false completion.
+
+## 5. System Architecture
+
+### 5.1 System Error Handling and Autonomous Recovery
+
+Every safeguard and gate must fail closed without automatically blocking the surrounding run. When an agent's work or
+decision causes a correctable failure, Nom records and returns the evidence to that agent so it can correct the failure
+and continue. The workflow governs any resulting transition without transferring artifact authority.
+
+Nom automatically repairs and retries operational failures when it can do so safely. Equivalent failures must not loop
+silently, but legitimate architecture, implementation, and quality refinement have no fixed iteration limit. A run
+becomes operationally blocked or failed only under the definitions in Pause, Operational Block, Failure, and Resume.
+
+Only the Architect may ask the user for a product decision or propose a Charter change; other agents route such matters
+through it. Nom may surface operational actions that only the user can perform, such as adding budget or credentials.
+
+### 5.2 Durable State and Recovery
 
 Nom must store enough operational state durably, separately from generated project branches, to recover active work,
-pending input, validation results, token-budget usage, reported quota status, and completion status. On startup, Nom
-reconciles that state with the repository and agent workspaces before scheduling more work. Retrying an operation must
-not duplicate an integrated change, lose a pending Charter update, or convert interrupted work into accepted work.
+pending input, workflow phase and run status, recovery attempts, policy revisions, validation results, token-budget usage,
+reported quota status, and completion status. On startup, Nom reconciles that state with the repository and agent
+workspaces before scheduling more work. Retrying an operation must not duplicate an integrated change, lose a pending
+Charter update, or convert interrupted work into accepted work.
 
-### 7.8 Run Budgets and Usage Safety
+### 5.3 Run Budgets and Usage Safety
 
 The user must provide a token budget when starting a run. Nom must track the Codex token usage reported for that run and
 stop scheduling new agent turns when the budget is exhausted. Work stops at a safe agent-turn boundary, and budget
@@ -324,27 +436,29 @@ Whenever Codex reports the remaining weekly usage quota, Nom must stop schedulin
 is below 15 percent. The run pauses at a safe boundary without losing work and may resume only after the safety
 condition no longer applies. Nom must show the run's token budget, reported usage, and weekly quota status in the UI.
 
-### 7.9 Configuration and Execution
+### 5.4 Configuration and Execution
 
 Nom should expose the following configuration options to the user as command-line flags:
-* Port number (default 7777) for the local web UI
-* Coding model to use (default GPT-5.6-Sol)
-* Architect reasoning level (default extra-high)
-* Implementer reasoning level (default medium)
-* Reviewer/QA reasoning level (default high)
+
+- Port number (default 7777) for the local web UI
+- Coding model to use (default GPT-5.6-Sol)
+- Architect reasoning level (default extra-high)
+- Implementer reasoning level (default medium)
+- Reviewer/QA reasoning level (default high)
 
 Additional configuration options should only be added if strictly necessary. The user MUST NOT be required to configure
-minor environment details such as container images, registries, or specialized toolchains. Nom is responsible for setting
-up the required execution environment for its agents and for projects.
+minor environment details such as container images, registries, toolchains, or scanner paths. Nom must provide its own
+operational tools, including the default secret scanner, and the managed execution environment for agents and projects.
+These must use pinned or immutable versions and must not depend on tools being present on the host `PATH`.
 
-If the user specifies other configuration in the Charter for a project, and specifies that the user will provide
-those values. Only then, may Nom require that those options be provided to perform a Run and build the project. For
-example, the user might specify that the project will use a specific third-party API and that they will provide an API
-key. In that case, each agent should verify that the API key is provided when beginning its work.
+Nom may require a user-provided value only when the Charter or an approved policy says the user will provide it. Work that
+does not require a missing value continues.
 
-## 8. Repository Safety and Traceability
+Before agents work, Nom gives them the effective execution environment and repository policy. The Design records that
+policy, and changes are reconciled like other stale inputs. The Architect may propose a durable exception, but weakening
+a safety policy requires explicit user approval and may not be done ad hoc merely to pass a gate.
 
-### 8.1 Repository Hygiene
+### 5.5 Repository Hygiene
 
 Implementation agents may autonomously modify files and create local commits, but Nom must prevent unsafe or irrelevant
 content from entering durable generated branches or being pushed to a remote. This includes:
@@ -368,31 +482,35 @@ Remote pushing is disabled until the user enables a specific remote for the repo
 generated Code and Release branches after they pass the repository-safety gate. Pushing the human-owned Charter branch
 requires separate explicit enablement.
 
-Before a push, Nom must inspect every Git object that the push would make newly reachable from the remote. The default
-limits are 2 MiB for any single blob and 10 MiB for the aggregate size of all newly introduced objects. A durable
-repository policy may deliberately change these limits or allow required source assets, but an agent may not create an
-ad hoc exception. Binary files are not forbidden merely because they are binary; generated artifacts, caches, logs,
-databases, archives, and other irrelevant content remain forbidden unless the Design or repository policy requires
-them.
+Nom applies its repository-safety gate before publishing a Design revision, before independent Review of an
+implementation candidate, and again before integrating the exact reviewed candidate. The gate inspects every Git object
+the candidate would make newly reachable from its expected base. The default limits are:
 
-Nom must scan the newly reachable content for secrets with TruffleHog by default. A durable repository policy may select
-an equivalent maintained standard scanner. Verified secrets and other high-confidence findings block the push unless a
-durable allowlist identifies a known false positive. Nom must not bypass either its scanner or a remote provider's
-secret-protection mechanism.
+- 2 MiB for any single blob.
+- 10 MiB for the aggregate size of all newly introduced objects.
 
-New submodules, repository-escaping or absolute symlinks, and unavailable Git LFS objects must block a push unless a
-durable repository policy explicitly permits the resulting repository state. Nom must fetch the remote state before
-publishing and push only the intended branch when its expected remote head is still current. By default, it must not
-force-push, delete remote references, use wildcard refspecs, or bypass branch protection. A rejected push and its reason
-must be visible to the user.
+A durable repository policy may change these limits or allow required source assets. Binary files are not forbidden
+merely because they are binary; irrelevant generated artifacts, caches, logs, databases, and archives remain forbidden
+unless the policy explicitly permits them.
 
-### 8.2 Traceability and Stale-Work Safety
+Nom scans the same content for secrets with TruffleHog by default; a durable policy may select an equivalent maintained
+scanner. Verified secrets and other high-confidence findings reject the candidate unless a durable allowlist identifies
+a known false positive. Nom must not bypass its scanner or a remote provider's secret protection.
+
+Before a push, Nom applies the same checks to every object the push would make newly reachable from the remote. New
+submodules, repository-escaping or absolute symlinks, and unavailable Git LFS objects reject a candidate or push unless
+the policy explicitly permits them. Nom must fetch remote state and push only the intended branch when its expected head
+is current. By default, it must not force-push, delete remote references, use wildcard refspecs, or bypass branch
+protection. A rejected push and its reason must be visible to the user.
+
+### 5.6 Traceability and Stale-Work Safety
 
 Every stage must operate from identifiable, immutable revisions rather than moving branch names. Nom must retain a
 durable, inspectable association between:
 
-- Each Design revision and the Charter revision and Code baseline it considered.
-- Each implementation result and the Design, task, and Code baseline that authorized it.
+- Each Design revision and the Charter revision, policy, and Code baseline it considered.
+- Each implementation, validation, review, and integration result and the Design, task, candidate, and Code baseline it
+  assessed.
 - Each completion decision and the exact Charter, final Design, and reviewed Code revisions it assessed.
 
 Before accepting work or reporting completion, Nom must detect whether relevant inputs or branches changed and ensure
@@ -403,7 +521,7 @@ partially completed transition. Traceability and completion state must remain re
 The Design may choose how to represent this metadata, store operational records, and safely publish related branch
 updates.
 
-### 8.3 Test Isolation
+### 5.7 Test Isolation
 
 Nom must run project tests in Podman containers so test behavior cannot modify the real repository or its worktrees.
 Tests must operate on disposable repository copies and container-local writable storage. The real repository may be
@@ -415,7 +533,7 @@ Builds, static analysis, and other validation that can execute project-controlle
 isolation. The Design chooses the container topology and artifact-transfer mechanism, but isolated commands must not
 silently fall back to execution against the host repository when Podman is unavailable.
 
-## 9. Self-Hosting Nom
+## 6. Self-Hosting Nom
 
 Nom should be able to build itself.
 
@@ -441,7 +559,7 @@ code/2.x may be a fresh cleanroom generation from the Charter
 
 The lineage is not assumed. It is recorded in the Design run manifest.
 
-## 10. User Interaction Model
+## 7. User Interaction Model
 
 The normal user should not need to understand Design collateral, Code branches, or Release branches.
 
@@ -460,7 +578,7 @@ surface denials through the Nom UI; approval requests should not be surfaced to 
 The user may inspect Design collateral, Code branches, or Release branches when they want to debug, audit, or understand
 what Nom is doing. These generated artifacts are not the main user interface.
 
-## 11. Implementation Details
+## 8. Implementation Details
 
 - Nom must be written in Rust and built as a single binary named `nom`.
 - Nom is dual-licensed under MIT OR Apache-2.0. Generated Code and Release branches must retain the `LICENSE-MIT` and
