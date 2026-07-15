@@ -298,7 +298,8 @@ Allowed transitions:
 
 - When an Implementer produces a task candidate and its required tests have run, the candidate moves to Candidate
   Validation. Producing a candidate does not complete the task.
-- If the Implementer reports a Design-level finding, the run returns to Research and Architecture.
+- If the Implementer reports a Design-level finding or any other failure it cannot correct, the run returns to Research
+  and Architecture with its report and evidence for Architect triage.
 - A task becomes complete only after its exact approved candidate passes Controlled Integration. When all planned tasks
   are complete, the run moves to Iteration and Refinement.
 
@@ -399,9 +400,11 @@ and prevents Nom from scheduling another agent turn until the user authorizes ad
 pauses behave likewise and may resume only when the safety condition clears. Nom must report either pause without
 scheduling an over-budget agent turn.
 
-Operationally blocked is reserved for a condition Nom cannot safely repair after its automatic attempts; the UI must
-show the condition and required user action. An unrecoverable condition makes the run failed. Neither status permits
-false completion.
+Operationally blocked is reserved for an external capability that Nom cannot provide or safely substitute after
+autonomous recovery and that requires external action. Failed is reserved for proven impossibility under the immutable
+Charter and safety policy, or irrecoverable corruption that prevents safe reconstruction. Failed checks, unavailable
+tools or dependencies, unresolved findings, and agent-reported blocked or failed outcomes are not by themselves
+terminal conditions. The UI must clearly indicate the condition and required user action.
 
 ## 5. System Architecture
 
@@ -410,6 +413,12 @@ false completion.
 Every safeguard and gate must fail closed without automatically blocking the surrounding run. When an agent's work or
 decision causes a correctable failure, Nom records and returns the evidence to that agent so it can correct the failure
 and continue. The workflow governs any resulting transition without transferring artifact authority.
+
+Agent findings, classifications, and outcomes are evidence, not authoritative workflow transitions. Any failure that
+cannot be corrected in the current workflow returns to the Architect with its report and evidence, regardless of its
+classification; a well-formed agent result is never an invariant violation. The Architect selects the next workflow
+transition under this Charter. Nom must not treat exhausted retries as a failure or repeat an equivalent action without
+changed inputs; when no different recovery path remains, it returns the evidence to the Architect.
 
 Nom automatically repairs and retries operational failures when it can do so safely. Equivalent failures must not loop
 silently, but legitimate architecture, implementation, and quality refinement have no fixed iteration limit. A run
@@ -436,7 +445,41 @@ Whenever Codex reports the remaining weekly usage quota, Nom must stop schedulin
 is below 15 percent. The run pauses at a safe boundary without losing work and may resume only after the safety
 condition no longer applies. Nom must show the run's token budget, reported usage, and weekly quota status in the UI.
 
-### 5.4 Configuration and Execution
+### 5.4 Security and Safety Model
+
+Nom is designed to run on a dedicated machine, without valuable user data, and it should prioritize autonomous
+execution and delivering high-quality results, over strict safety guarantees.
+
+It should make a best effort attempt to prevent actions which create material risk to the user, host, repository,
+credentials, external systems, privacy, or unexpected cost. Nom must deny agent actions that are outside the effective
+policy or create such material risk. It must durably record every disposition and surface denials through the Nom UI;
+approval requests should not be surfaced to the user.
+
+Nom's main security approach is to rely on the Codex built-in sandboxing, and to execute all generated code in a Podman
+container. However, the latter is more to protect the Nom itself and the host from unintended consequences, rather
+than for a hard security boundary. Nom must permit task-required actions that the effective policy allows within those
+Podman containers.
+
+### 5.5 Execution
+
+Before agents work, Nom gives them the effective execution environment and repository policy. The Design records that
+policy, and changes are reconciled like other stale inputs. The Architect may make durable exceptions to the default
+policy within the Charter's safety requirements; weakening those requirements needs explicit user approval.
+
+Nom must make capabilities permitted by the effective policy available in the managed execution environment.
+Within the execution environment, agents may autonomously install packages and toolchains, download public dependencies,
+build or modify container images, configure caches and registries, and otherwise repair their execution environment as
+needed to complete the project. Routine environment changes must not require user configuration or approval.
+
+Nom should provide sensible defaults. Missing or unsuitable tools or inputs trigger autonomous recovery rather than by
+themselves blocking or failing a run. Reproducibility should be captured in the generated project through lockfiles,
+configuration, scripts, or Design records where practical; it must not prevent autonomous progress.
+
+Nom and its agents must not fabricate or misrepresent project inputs, evidence, or results to satisfy a gate. Third-party
+inputs must be authentic and verified with available integrity mechanisms. Intentional substitutions are normal Design
+or Code changes subject to applicable validation and independent review.
+
+### 5.6 Configuration
 
 Nom should expose the following configuration options to the user as command-line flags:
 
@@ -454,11 +497,7 @@ These must use pinned or immutable versions and must not depend on tools being p
 Nom may require a user-provided value only when the Charter or an approved policy says the user will provide it. Work that
 does not require a missing value continues.
 
-Before agents work, Nom gives them the effective execution environment and repository policy. The Design records that
-policy, and changes are reconciled like other stale inputs. The Architect may propose a durable exception, but weakening
-a safety policy requires explicit user approval and may not be done ad hoc merely to pass a gate.
-
-### 5.5 Repository Hygiene
+### 5.7 Repository Hygiene
 
 Implementation agents may autonomously modify files and create local commits, but Nom must prevent unsafe or irrelevant
 content from entering durable generated branches or being pushed to a remote. This includes:
@@ -503,7 +542,7 @@ the policy explicitly permits them. Nom must fetch remote state and push only th
 is current. By default, it must not force-push, delete remote references, use wildcard refspecs, or bypass branch
 protection. A rejected push and its reason must be visible to the user.
 
-### 5.6 Traceability and Stale-Work Safety
+### 5.8 Traceability and Stale-Work Safety
 
 Every stage must operate from identifiable, immutable revisions rather than moving branch names. Nom must retain a
 durable, inspectable association between:
@@ -521,7 +560,7 @@ partially completed transition. Traceability and completion state must remain re
 The Design may choose how to represent this metadata, store operational records, and safely publish related branch
 updates.
 
-### 5.7 Test Isolation
+### 5.9 Test Isolation
 
 Nom must run project tests in Podman containers so test behavior cannot modify the real repository or its worktrees.
 Tests must operate on disposable repository copies and container-local writable storage. The real repository may be
@@ -569,11 +608,6 @@ The user interacts with Nom through:
 2. The Nom UI
 
 See [ui.md](./ui.md) for details on the Nom UI.
-
-If Codex requires approval to cross a configured boundary, Nom should approve requests that are necessary for the task
-and permitted by a Design-defined safety policy. It must deny requests that create material risk to the user, host,
-repository, credentials, external systems, privacy, or unexpected cost. Nom must durably record every disposition and
-surface denials through the Nom UI; approval requests should not be surfaced to the user.
 
 The user may inspect Design collateral, Code branches, or Release branches when they want to debug, audit, or understand
 what Nom is doing. These generated artifacts are not the main user interface.
