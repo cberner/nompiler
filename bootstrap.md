@@ -21,7 +21,8 @@ pipeline that Nom can continue developing itself when the user adds or changes r
 The initial bootstrap path is:
 
 1. The user writes the Nom Charter on the Charter branch.
-2. The user manually prompts Codex through the Nom workflow.
+2. The user runs the single seed prompt in Section 2.1 to produce the early `nom bootstrap` workflow helper, then uses
+   that helper to conduct every remaining bootstrap role.
 3. This produces the `code/bootstrap` branch, with canonical Design artifacts under `.nom/design/`.
 4. The resulting implementation is Nom v0.
 5. Nom v0 reads the Charter branch and generates a new Design revision on a Code branch.
@@ -43,13 +44,66 @@ reconciliation exposes a Charter or product conflict, report that conflict inste
 
 ### 2.1 Bootstrap Helper
 
-The initial implementation must add a `nom bootstrap` subcommand early, as soon as a usable `nom` executable and basic
-repository inspection are available. Until then, the human follows this document directly. The helper is a read-only
-advisor for the manual bootstrap, not a second workflow engine and not authoritative runtime state.
+The user runs the following single seed prompt from the clean `master` worktree. This is an intentional one-time
+exception to the Design-first workflow: it may implement only the bootstrap helper before the canonical Design exists.
+The later Architect must reconcile the seed implementation as generated input and may design for it to be preserved,
+revised, or replaced.
 
-`nom bootstrap` is CLI-only. It must print its report and next-action guidance to the terminal and then exit. It must
-not start the local web server, launch or open the web UI, or require a browser. Running `nom` without the `bootstrap`
-subcommand remains the way to launch the normal local web UI.
+```text
+Act as the seed Implementer for the Nom bootstrap helper.
+
+Read bootstrap.md and AGENTS.md from the current master head. Work in a dedicated
+writable worktree on code/bootstrap; do not switch or modify the master worktree.
+Inspect and reconcile the existing code/bootstrap branch and never reset or
+recreate it merely to obtain a clean starting point. Do not modify .nom/design/.
+
+Implement only the `nom bootstrap` command described in Section 2.1. Treat
+Sections 3.1 through 3.3 as prompts the command launches, not as work to perform
+during this seed step. Treat all other requirements as constraints rather than
+additional implementation scope. This seed implementation is the explicit
+one-time exception that precedes the canonical Bootstrap Design.
+
+Add focused tests for the helper. Run every build, test, and validation step that
+can execute project-controlled code in Podman against a disposable repository
+copy; never expose the real repository or its worktrees as writable test storage.
+
+Commit the implementation and tests to code/bootstrap. Continue until the helper
+builds and its focused tests pass. Copy the resulting `nom` executable out of the
+container without committing it, then report its path, the exact Code commit, and
+all checks run with their outcomes.
+```
+
+The initial implementation must add a `nom bootstrap` subcommand early, as soon as a usable `nom` executable and basic
+repository inspection are available. Until then, the human follows this document directly. The helper is a small,
+bootstrap-only workflow engine, not a second implementation of normal Nom orchestration. It does not implement token
+budgets, quota monitoring, persistent run state, or other normal Nom workflow features.
+
+The command accepts `--start-role <architect|implementer|qa>` and `--iteration-limit <count>`, with an iteration limit of
+100 by default. Without `--start-role`, it derives the next role from repository evidence. A requested starting role is
+still subject to the role prerequisites. The iteration limit counts every prompted role session, including transitions
+back to the same role; reaching it stops the command without reporting the bootstrap complete.
+
+The bootstrap workflow states are:
+
+- Architect
+- Implementer
+- QA
+- Done
+
+At startup and after every prompted role session, the helper inspects the current `master` and `code/bootstrap` revisions
+and their bootstrap artifacts. It launches the corresponding prompt from Section 3 only after checking its prerequisites,
+and every QA iteration uses a fresh Codex session.
+
+When a role session finishes, the helper starts a fresh read-only Codex session that receives the final message and the
+current repository inspection and returns the next state and its reason as structured output. The helper validates that
+recommendation against the repository before continuing. In particular, it enters `Done` only when the current state
+satisfies the Section 3.3 `PASS` conditions. If a session fails, the iteration limit is reached, or user action is needed,
+the command stops and explains why. Running it again re-inspects the repository and continues from the resulting state.
+
+`nom bootstrap` is CLI-only. It must print its progress to the terminal. The output should include the final messages
+from each Codex session as the state transitions happen. It must not start the local web server, launch or open the web
+UI, or require a browser. Running `nom` without the `bootstrap` subcommand remains the way to launch the normal
+local web UI.
 
 When run from the project repository, `nom bootstrap` must inspect the current bootstrap state across the `master`
 branch and the `code/bootstrap` branch without requiring the human to check out either one. It should report at least:
@@ -63,24 +117,22 @@ branch and the `code/bootstrap` branch without requiring the human to check out 
 - The latest QA status in `BOOTSTRAP-QA.md`, including whether repeatable checks and live development acceptance
   apply to the current Design and Code revisions.
 
-The command must explain inconsistencies rather than guessing or modifying the repository. It should finish with one
-primary next action and the reason for it, choosing among initializing the missing branch, answering
-`.nom/design/QUESTIONS.md`, running or resuming the Architect prompt, running or resuming the Implementer prompt,
-running a fresh QA prompt, manually reconciling unsafe state, or declaring the manual bootstrap complete. It may also
-list secondary blockers.
+The helper itself must not edit role-owned artifacts or guess how to reconcile inconsistent state; repository changes
+belong to the prompted roles. If user action is required, such as initializing a missing branch, answering
+`.nom/design/QUESTIONS.md`, or reconciling unsafe repository state, the command stops and clearly explains what to do.
 
-## 3. Human-Driven Bootstrap Prompts
+## 3. Bootstrap Role Prompts
 
-The initial manual bootstrap intentionally uses only three prompts. It does not attempt to simulate Nom's eventual
-runtime orchestration before Nom exists. During this manual stage, the Architect, Implementer, and quality agent advance
-the `code/bootstrap` branch sequentially within their artifact-ownership boundaries. The generated Nom implementation
-must still satisfy the safe integration, durable recovery, and review requirements elsewhere in this contract.
+The `nom bootstrap` helper, not the user, launches the following prompts. The Architect, Implementer, and quality agent
+advance the `code/bootstrap` branch sequentially within their artifact-ownership boundaries. The generated Nom
+implementation must still satisfy the safe integration, durable recovery, and review requirements elsewhere in this
+contract.
 
-Run 3.1 and resume or repeat it until the Architect reports `COMPLETE`. Do not start 3.2 while the Design is
-`INCOMPLETE` or a blocking question remains unanswered. Run 3.2 once and resume it as needed until every implementation
-task is complete or genuinely blocked. Then run 3.3 in a fresh thread for every iteration until it reports `PASS`. If
-implementation or QA exposes an architecture-level problem, rerun 3.1 until the revised Design is `COMPLETE`, then
-resume 3.2.
+The helper runs or repeats 3.1 until the Architect reports `COMPLETE`. It does not start 3.2 while the Design is
+`INCOMPLETE` or a blocking question remains unanswered. It runs or repeats 3.2 until every implementation task is
+complete or genuinely blocked, then runs 3.3 in a fresh thread for every iteration until it reports `PASS`. If
+implementation or QA exposes an architecture-level problem, the helper returns to 3.1 until the revised Design is
+`COMPLETE`, then continues with 3.2.
 
 At the beginning of each prompted session, the agent should resolve the named branch heads to full commit IDs and report
 the commits used. When the Architect needs a product-level answer, it must write the question to
@@ -100,8 +152,8 @@ revision log. Product-level findings that require a user decision become questio
 
 Each QA iteration appends a record to `BOOTSTRAP-QA.md` on the `code/bootstrap` branch containing the Design and Code
 revisions assessed, quality status, repeatable checks and results, whether the live development test ran, and its
-result. The bootstrap helper reads these coordination files only to advise the human; normal Nom orchestration must not
-use them as runtime state or as a substitute for its own validation.
+result. The bootstrap helper may use these coordination files to choose the next prompt, but must validate their recorded
+revisions against the repository. Normal Nom orchestration must not use them as runtime state.
 
 ### 3.1 Generate the Bootstrap Design
 
@@ -120,6 +172,11 @@ than assuming a clean starting state. If it contains DESIGN-FINDINGS.md, read it
 and inspect relevant Code when needed. Record a clear disposition for every
 finding not already addressed by the canonical Design, revising the architecture
 and tasks where appropriate.
+
+The existing `nom bootstrap` seed implementation was intentionally created before
+the canonical Design. Treat it as generated input with no special preservation
+status. Reconcile it into the Design and tasks without modifying implementation
+paths in this Architect role.
 
 Generate and commit all canonical Design artifacts required by the Charter under
 `.nom/design/`. The Design must include the run manifest and exact inputs,
@@ -146,10 +203,10 @@ independently. The Implementer will mirror these task IDs and completion status
 into BOOTSTRAP-TASKS.md on the `code/bootstrap` branch; that mirror must not
 redefine the canonical tasks.
 
-Make an early implementation milestone produce the `nom` executable with a
-read-only `nom bootstrap` subcommand. It may initially report incomplete state,
-but it must remain useful and accurate as later tasks add coordination artifacts
-and acceptance evidence.
+Make an early implementation milestone produce the `nom` executable with the
+`nom bootstrap` subcommand described in Section 2.1. Its first increment may
+provide inspection and guidance before Codex session launching is implemented,
+but it must grow into the specified workflow engine during this bootstrap.
 
 Create an implementation-independent black-box acceptance harness and fixtures
 under `.nom/design/`. Freeze them in the Design commit before Code implementation
@@ -205,10 +262,10 @@ The file tracks implementation status only; do not rewrite task definitions
 there. If the Design changed, add new or revised task IDs and mark superseded IDs
 explicitly rather than silently deleting history.
 
-BOOTSTRAP-TASKS.md is only a progress ledger for the initial human-driven
-bootstrap. The `nom bootstrap` advisor may read it, but normal Nom orchestration
-must not use it for scheduling, recovery, completion, or any other runtime
-behavior. Nom must keep its operational task state in its durable runtime state.
+BOOTSTRAP-TASKS.md is only a progress ledger for the initial bootstrap. The
+`nom bootstrap` helper may use it to choose the next prompt but must validate its
+recorded revisions against the repository. Normal Nom orchestration must not use
+it for scheduling, recovery, completion, or any other runtime behavior.
 
 Implement tasks in dependency order. For each task, implement the full behavior,
 add or update tests for every acceptance criterion, and run the relevant
@@ -225,9 +282,11 @@ If Podman is unavailable, report the check as blocked rather than falling back
 to host execution.
 
 Prioritize the early Design milestone that creates the `nom` executable and
-`nom bootstrap` advisor. Test it against missing, partial, divergent, blocked,
+`nom bootstrap` helper. Test its inspection, role selection, stopping, rerun
+continuation, and completion behavior against missing, partial, divergent, blocked,
 ready-for-implementation, ready-for-QA, and completed bootstrap states. Its
-advice must be based on repository evidence and must never modify that state.
+decisions must be based on repository evidence, and only its prompted roles may
+modify role-owned artifacts.
 
 You may use internal task branches when useful, but merge each completed task's
 Code, tests, and BOOTSTRAP-TASKS.md update into the `code/bootstrap` branch
@@ -336,8 +395,8 @@ The web UI does not require login or application authentication. It must bind on
 network-binding override in v0. Lack of login does not remove normal browser protections such as CSRF, origin, and host
 validation.
 
-The required `nom bootstrap` subcommand assists the initial human-driven bootstrap. Nom v0 may provide other internal
-debugging or maintenance commands, but a CLI is not the normal product interface.
+The required `nom bootstrap` subcommand conducts the remaining initial bootstrap after the early executable exists. Nom
+v0 may provide other internal debugging or maintenance commands, but a CLI is not the normal product interface.
 
 “Local-only” applies to Nom's UI and orchestration service. Codex may still use the service connectivity required by
 its configured runtime.
@@ -408,9 +467,9 @@ schema.
 Nom v0 follows the completion authority and quality requirements in the Charter. The Architect may exclude a requirement
 only when it is an explicit bootstrap non-goal or Charter exception; it may not waive requirements by relabeling them as
 out of scope. Architecture and quality loops have no fixed iteration limit. Operational retries may be bounded, but
-exhausting them blocks progress and never permits incomplete work to be reported as complete. The user may cancel at
-any time. Token-budget exhaustion and the weekly-quota safety threshold pause work without weakening the completion
-criteria.
+exhausting them returns their evidence to the Architect and never permits incomplete work to be reported as complete.
+The user may cancel at any time. Token-budget exhaustion and the weekly-quota safety threshold pause work without
+weakening the completion criteria.
 
 ## 10. Bootstrap Acceptance Tests
 
@@ -447,9 +506,10 @@ remains the only production agent runtime. The tests must demonstrate:
   intervention.
 - Safe failure without false completion.
 - Durable revision traceability.
-- Read-only `nom bootstrap` guidance for missing, inconsistent, blocked, in-progress, QA-ready, and completed states.
-  This item applies only to Nom v0 on the `code/bootstrap` branch. The `nom bootstrap` advisor exists for the initial
-  human-driven bootstrap, and the harness must not require it of Nom v1 or later generated versions.
+- Repository-derived `nom bootstrap` inspection and orchestration for missing, inconsistent, blocked, in-progress,
+  QA-ready, and completed states, including validated role overrides, fresh QA sessions, iteration-limit stopping, and
+  rejection of unsupported completion claims. This item applies only to Nom v0 on the `code/bootstrap` branch; the
+  harness must not require the helper of Nom v1 or later generated versions.
 
 ### 10.2 Live Development Test
 

@@ -6,16 +6,19 @@ Implement the bootstrap MVP specified by `charter.md`, `ui.md`, and `bootstrap.m
   never reset it merely to manufacture a clean starting point.
 - Perform architecture and canonical Design work under `.nom/design/` on the `code/bootstrap` branch. Architect work
   must not modify implementation paths.
-- During the initial human-driven bootstrap, perform implementation and QA work on the `code/bootstrap` branch, using
+- The seed prompt in `bootstrap.md` Section 2.1 is the one-time exception that may implement only the `nom bootstrap`
+  helper before the canonical Design exists. It must not modify `.nom/design/`; the later Architect reconciles its
+  output as generated input with no special preservation status.
+- During the initial bootstrap, perform implementation and QA work on the `code/bootstrap` branch, using
   internal task branches when useful. Keep `BOOTSTRAP-TASKS.md` synchronized with completed Design tasks, but never use
   it as runtime state in the generated Nom implementation. Append Design- and product-level findings to
   `DESIGN-FINDINGS.md` for the Architect. Implementer and QA work must not modify `.nom/design/`.
-- Prioritize an early working `nom` executable with the read-only `nom bootstrap` advisor required by `bootstrap.md`.
+- Prioritize an early working `nom` executable with the `nom bootstrap` workflow helper required by `bootstrap.md`.
 - Run every test inside Podman against disposable repository copies. Never expose the real repository or its worktrees
   to tests as writable storage, and never fall back to host test execution.
-- The manual bootstrap roles may advance `code/bootstrap` directly within their artifact-ownership boundaries because
-  Nom does not exist yet. The generated Nom implementation must enforce the Charter's review, stale-work rejection, and
-  safe integration requirements.
+- Manual and helper-launched bootstrap roles may advance `code/bootstrap` directly within their artifact-ownership
+  boundaries. The generated normal Nom implementation must enforce the Charter's review, stale-work rejection, and safe
+  integration requirements.
 - Do not implement the bootstrap MVP directly on `master`, `main`, or another Charter branch.
 - Treat `charter.md`, `ui.md`, and `bootstrap.md` as requirements.
 - Carry work through implementation, tests, review, and verification against the acceptance criteria in `bootstrap.md`.
